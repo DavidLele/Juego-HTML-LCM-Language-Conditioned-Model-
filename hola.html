@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Juego: ¡Aprendamos LCM! (Language‑Conditioned Model)</title>
+  <style>
+    :root{
+      --bg1:#fffbcc; --bg2:#ffd1ff; --bg3:#c2ffd8; --bg4:#cbe0ff; --ink:#222;
+      --primary:#ff3e9e; --secondary:#00c2ff; --accent:#7bff00; --warning:#ffb703; --ok:#2ecc71; --bad:#ff4d4d;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0; font-family: "Poppins", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; color:var(--ink);
+      background: radial-gradient(1500px 800px at -10% -20%, var(--bg1), transparent 60%),
+                  radial-gradient(1200px 700px at 110% 10%, var(--bg2), transparent 55%),
+                  radial-gradient(1000px 600px at 50% 120%, var(--bg3), transparent 60%), #fff;
+      min-height:100vh; overflow-x:hidden;
+    }
+    header{
+      text-align:center; padding:20px 16px 8px; position:relative;
+    }
+    h1{
+      margin:0; font-size:clamp(1.6rem, 2.5vw + 1rem, 2.6rem); letter-spacing:0.5px;
+      background: linear-gradient(90deg,var(--primary),var(--secondary),var(--accent));
+      -webkit-background-clip:text; background-clip:text; color:transparent;
+    }
+    .subtitle{opacity:.9}
+
+    .app{
+      max-width: 1100px; margin: 0 auto; padding: 12px 16px 64px;
+      display:grid; gap:16px;
+    }
+
+    /* Scoreboard */
+    .hud{
+      display:grid; grid-template-columns: 1fr auto auto; gap:12px; align-items:center;
+      background: linear-gradient(135deg, #fff, #f7f7ff);
+      padding:12px; border-radius:16px; box-shadow:0 10px 25px rgba(0,0,0,.08);
+      position:sticky; top:8px; z-index:5;
+    }
+    .score, .level{
+      display:flex; align-items:center; gap:10px; font-weight:700; font-size:1.1rem;
+    }
+    .score b{font-size:1.3rem}
+    .btn{
+      border:none; padding:10px 14px; border-radius:14px; font-weight:700; cursor:pointer;
+      background: linear-gradient(135deg, var(--secondary), var(--primary)); color:white;
+      box-shadow:0 6px 14px rgba(0,0,0,.15); transition: transform .05s ease, box-shadow .2s ease, filter .2s;
+    }
+    .btn:hover{filter:brightness(1.05)}
+    .btn:active{transform: translateY(1px)}
+
+    /* Cards */
+    .card{
+      background:white; border-radius:24px; box-shadow:0 12px 28px rgba(0,0,0,.12);
+      padding:16px; overflow:hidden; position:relative;
+    }
+    .card h2{margin:.2rem 0 0.8rem; font-size:clamp(1.1rem, 1.2vw + .9rem, 1.6rem)}
+
+    /* Sections */
+    .grid{display:grid; gap:16px}
+
+    /* Matching game */
+    .matching{display:grid; grid-template-columns:1fr 1fr; gap:16px}
+    .draglist, .droplist{display:grid; gap:12px}
+    .chip{
+      background:linear-gradient(135deg, var(--accent), #00ffa6);
+      color:#073b1a; padding:10px 12px; border-radius:999px; font-weight:800; cursor:grab; user-select:none;
+      display:flex; align-items:center; gap:10px; box-shadow:0 8px 18px rgba(0,0,0,.18);
+    }
+    .chip:active{cursor:grabbing}
+    .emoji{font-size:1.2rem}
+    .dropzone{
+      background:#f1f7ff; border:3px dashed #7aa2ff; border-radius:18px; padding:12px; min-height:74px;
+      display:grid; grid-template-columns:auto 1fr; gap:10px; align-items:center; transition: .2s ease;
+    }
+    .dropzone.correct{background:#e7ffe7; border-color:var(--ok)}
+    .dropzone.wrong{background:#ffe7e7; border-color:var(--bad)}
+    .dropzone .label{font-weight:700}
+    .drop-in{background:#fff; padding:6px 10px; border-radius:999px; font-weight:800; border:2px solid #ddd}
+
+    /* Quiz */
+    .quiz .q{font-weight:700; margin:6px 0 10px}
+    .choices{display:grid; gap:10px}
+    .choice{
+      border:3px solid transparent; border-radius:16px; padding:10px; font-weight:700; cursor:pointer;
+      background:linear-gradient(135deg, #fff, #f8f8ff);
+      box-shadow:0 6px 16px rgba(0,0,0,.12);
+    }
+    .choice:hover{border-color:#c3d4ff}
+    .choice.correct{border-color:var(--ok); background:#ecfff3}
+    .choice.wrong{border-color:var(--bad); background:#fff1f1}
+
+    /* Shapes */
+    .shapes{
+      display:flex; gap:12px; flex-wrap:wrap; margin-top:8px
+    }
+    .circle{width:48px; height:48px; border-radius:50%; background:linear-gradient(135deg,#ffeb3b,#ff9800)}
+    .square{width:48px; height:48px; border-radius:12px; background:linear-gradient(135deg,#29b6f6,#00e5ff)}
+    .triangle{width:0;height:0;border-left:26px solid transparent; border-right:26px solid transparent; border-bottom:48px solid #ef5350; border-radius:6px}
+    .star{width:0; height:0; position:relative}
+    .star:before, .star:after{
+      content:""; position:absolute; left:-24px; top:0; width:0; height:0;
+      border-left:24px solid transparent; border-right:24px solid transparent; border-bottom:48px solid #ab47bc;
+      filter:drop-shadow(0 6px 6px rgba(0,0,0,.2))
+    }
+    .star:after{transform:rotate(35deg)}
+
+    /* Footer */
+    footer{opacity:.8; text-align:center; padding:26px 12px}
+
+    /* Responsive */
+    @media (max-width: 820px){
+      .matching{grid-template-columns:1fr}
+      .hud{grid-template-columns:1fr auto}
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🎮 ¡Aprendamos sobre LCM! — Language‑Conditioned Model</h1>
+    <p class="subtitle">Responde, arrastra, gana puntos y mira cómo aparecen formas y colores ✨</p>
+  </header>
+
+  <main class="app">
+    <section class="hud">
+      <div class="score">Puntaje: <b id="score">0</b> ⭐</div>
+      <div class="level">Nivel: <span id="level">1</span>/2</div>
+      <div>
+        <button class="btn" id="btnReset">Reiniciar</button>
+      </div>
+    </section>
+
+    <!-- Nivel 1: Emparejamiento por arrastrar y soltar -->
+    <section id="level1" class="card">
+      <h2>🧩 Nivel 1: Empareja el concepto con su definición</h2>
+      <p>Arrastra cada ficha verde hacia la definición correcta. ¡Ganas 10 puntos por acierto! (‑5 si te equivocas).</p>
+      <div class="matching">
+        <div class="draglist" id="dragList"></div>
+        <div class="droplist" id="dropList"></div>
+      </div>
+      <div class="shapes" aria-hidden="true">
+        <div class="circle" title="círculo"></div>
+        <div class="square" title="cuadrado"></div>
+        <div class="triangle" title="triángulo"></div>
+        <div class="star" title="estrella"></div>
+      </div>
+      <p id="l1Status"></p>
+      <button class="btn" id="toLevel2" style="display:none; margin-top:8px">Siguiente nivel ▶</button>
+    </section>
+
+    <!-- Nivel 2: Quiz de opción múltiple -->
+    <section id="level2" class="card" style="display:none">
+      <h2>❓ Nivel 2: Quiz rápido</h2>
+      <div class="quiz" id="quiz"></div>
+      <p id="l2Status"></p>
+      <button class="btn" id="btnFinish" style="display:none">Terminar juego 🎉</button>
+    </section>
+
+    <section class="card" id="results" style="display:none">
+      <h2>🏆 ¡Resultado final!</h2>
+      <p>Tu puntaje total es: <b id="finalScore">0</b> ⭐</p>
+      <p>Consejo: Un LCM entiende <em>instrucciones en lenguaje</em> para decidir qué hacer. ¡Mientras más claras sean tus instrucciones (prompts), mejor respuesta dará!</p>
+      <button class="btn" id="btnReplay">Jugar otra vez 🔁</button>
+    </section>
+  </main>
+
+  <footer>
+    Hecho para 6º grado • Colores brillantes + formas • HTML, CSS y JS puro
+  </footer>
+
+  <script>
+    // --- Datos de juego ---
+    const matchingPairs = [
+      { term: 'LCM', def: 'Un modelo que sigue instrucciones escritas para decidir qué hacer.' },
+      { term: 'Prompt (instrucción)', def: 'El mensaje que tú escribes para decirle qué hacer.' },
+      { term: 'Salida (respuesta)', def: 'Lo que el modelo devuelve después de leer tu instrucción.' },
+      { term: 'Datos de entrenamiento', def: 'Ejemplos que ayudan al modelo a aprender.' },
+      { term: 'Chatbot', def: 'Un programa que conversa y responde usando un modelo.' }
+    ];
+
+    // Preguntas de opción múltiple (conceptos sencillos)
+    const quizQuestions = [
+      {
+        q: '¿Qué hace un LCM?',
+        choices: ['Dibuja solo pinturas famosas', 'Sigue instrucciones en lenguaje para actuar', 'Solo traduce idiomas', 'Apaga y prende computadoras'],
+        answer: 1
+      },
+      {
+        q: '¿Cuál de estos es un buen ejemplo de prompt?',
+        choices: ['Hola', 'Haz algo', 'Explica con 3 pasos cómo reciclar plástico', '???'],
+        answer: 2
+      },
+      {
+        q: 'Si tu prompt es claro y específico…',
+        choices: ['La respuesta suele ser mejor', 'No pasa nada', 'La computadora se daña', 'El modelo se confunde más'],
+        answer: 0
+      },
+      {
+        q: 'La “salida” de un modelo es…',
+        choices: ['La caja de la computadora', 'La respuesta que te da', 'El botón de encendido', 'Tu teclado'],
+        answer: 1
+      },
+      {
+        q: 'Si una respuesta parece incorrecta o rara, lo mejor es…',
+        choices: ['Creerla sin pensar', 'Pedir ayuda a un adulto/profe y verificar', 'Borrar internet', 'Enojarse con el modelo'],
+        answer: 1
+      }
+    ];
+
+    // --- Estado ---
+    let score = 0; let matchesDone = 0; let currentQ = 0;
+
+    // --- Utilidades ---
+    const $ = s => document.querySelector(s);
+    const $$ = s => Array.from(document.querySelectorAll(s));
+    const setScore = v => { score = Math.max(0, v); $('#score').textContent = score; };
+
+    // --- Inicializar Nivel 1 ---
+    function initLevel1(){
+      $('#level').textContent = '1';
+      $('#level1').style.display = '';
+      $('#level2').style.display = 'none';
+      $('#results').style.display = 'none';
+      $('#toLevel2').style.display = 'none';
+      $('#l1Status').textContent = '';
+      matchesDone = 0; setScore(0);
+
+      // Clonar y desordenar
+      const terms = [...matchingPairs].sort(() => Math.random() - 0.5);
+      const defs  = [...matchingPairs].sort(() => Math.random() - 0.5);
+
+      const dragList = $('#dragList'); dragList.innerHTML = '';
+      const dropList = $('#dropList'); dropList.innerHTML = '';
+
+      // Render draggables
+      terms.forEach(({term}) => {
+        const el = document.createElement('div');
+        el.className = 'chip'; el.draggable = true; el.dataset.term = term;
+        el.innerHTML = `<span class="emoji">🟢</span> ${term}`;
+        el.addEventListener('dragstart', e => {
+          e.dataTransfer.setData('text/plain', term);
+        });
+        dragList.appendChild(el);
+      });
+
+      // Render dropzones (definiciones)
+      defs.forEach(({term, def}) => {
+        const dz = document.createElement('div');
+        dz.className = 'dropzone'; dz.dataset.term = term;
+        dz.innerHTML = `
+          <div class="emoji" aria-hidden="true">📘</div>
+          <div>
+            <div class="label">${def}</div>
+            <div class="drop-here" aria-live="polite"></div>
+          </div>`;
+        dz.addEventListener('dragover', e => { e.preventDefault(); dz.style.transform = 'scale(1.01)'; });
+        dz.addEventListener('dragleave', () => { dz.style.transform = 'scale(1)'; });
+        dz.addEventListener('drop', e => {
+          e.preventDefault(); dz.style.transform = 'scale(1)';
+          const dragged = e.dataTransfer.getData('text/plain');
+          const correct = dz.dataset.term === dragged;
+          const msg = dz.querySelector('.drop-here');
+          if(msg.textContent){ return; } // ya lleno
+          msg.textContent = dragged;
+          msg.className = 'drop-in';
+          if(correct){
+            dz.classList.add('correct');
+            setScore(score + 10);
+            matchesDone++;
+          } else {
+            dz.classList.add('wrong');
+            setScore(score - 5);
+          }
+          if(matchesDone === matchingPairs.length){
+            $('#l1Status').textContent = '¡Muy bien! Terminaste el Nivel 1. Pulsa "Siguiente nivel"';
+            $('#toLevel2').style.display = '';
+            confettiBurst();
+          }
+        });
+        dropList.appendChild(dz);
+      });
+    }
+
+    // --- Nivel 2: Quiz ---
+    function initLevel2(){
+      $('#level').textContent = '2';
+      $('#level1').style.display = 'none';
+      $('#level2').style.display = '';
+      $('#l2Status').textContent = '';
+      $('#btnFinish').style.display = 'none';
+      currentQ = 0; renderQ();
+    }
+
+    function renderQ(){
+      const box = $('#quiz'); box.innerHTML = '';
+      const {q, choices, answer} = quizQuestions[currentQ];
+      const qEl = document.createElement('div'); qEl.className = 'q'; qEl.textContent = `Pregunta ${currentQ+1}/${quizQuestions.length}: ${q}`;
+      const list = document.createElement('div'); list.className = 'choices';
+      choices.forEach((c,i) => {
+        const btn = document.createElement('button');
+        btn.className = 'choice'; btn.textContent = c; btn.addEventListener('click', () => {
+          if(i === answer){ btn.classList.add('correct'); setScore(score + 10); sparkle(btn); }
+          else { btn.classList.add('wrong'); setScore(score - 5); }
+          // desactivar
+          $$('.choice').forEach(b=> b.disabled = true);
+          // siguiente
+          setTimeout(() => {
+            currentQ++;
+            if(currentQ < quizQuestions.length){ renderQ(); }
+            else { $('#l2Status').textContent = '¡Terminaste el Quiz!'; $('#btnFinish').style.display = ''; confettiBurst(); }
+          }, 600);
+        });
+        list.appendChild(btn);
+      });
+      box.appendChild(qEl); box.appendChild(list);
+    }
+
+    // --- Resultados ---
+    function showResults(){
+      $('#level1').style.display = 'none';
+      $('#level2').style.display = 'none';
+      $('#results').style.display = '';
+      $('#finalScore').textContent = score;
+    }
+
+    // --- Efectos divertidos ---
+    function sparkle(target){
+      const s = document.createElement('div');
+      s.style.position='fixed'; s.style.pointerEvents='none';
+      const r = target.getBoundingClientRect();
+      s.style.left = (r.left + r.width/2) + 'px'; s.style.top = (r.top + r.height/2) + 'px';
+      s.style.width='10px'; s.style.height='10px'; s.style.borderRadius='50%'; s.style.background='radial-gradient(#fff, #ffd54f)';
+      s.style.boxShadow='0 0 40px 10px rgba(255, 213, 79, .8)'; s.style.opacity='1'; s.style.transition='all .5s ease';
+      document.body.appendChild(s);
+      requestAnimationFrame(()=>{
+        s.style.transform='translateY(-60px) scale(0.2)'; s.style.opacity='0';
+      });
+      setTimeout(()=> s.remove(), 520);
+    }
+
+    function confettiBurst(){
+      for(let i=0;i<24;i++) setTimeout(makePiece, i*18);
+      function makePiece(){
+        const d = document.createElement('div');
+        const size = 8 + Math.random()*10;
+        d.style.width = d.style.height = size+'px';
+        d.style.position='fixed'; d.style.left = Math.random()*100+'vw'; d.style.top='-10px';
+        d.style.background = `hsl(${Math.floor(Math.random()*360)} 90% 60%)`;
+        d.style.transform = `rotate(${Math.random()*360}deg)`; d.style.borderRadius = Math.random()>.5?'50%':'6px';
+        d.style.boxShadow='0 6px 10px rgba(0,0,0,.2)'; d.style.transition='transform 1.2s linear, top 1.2s ease, opacity 1.2s ease';
+        document.body.appendChild(d);
+        requestAnimationFrame(()=>{
+          d.style.top = '100vh'; d.style.transform += ` translateY(${80+Math.random()*40}vh)`; d.style.opacity='0';
+        });
+        setTimeout(()=> d.remove(), 1300);
+      }
+    }
+
+    // --- Eventos UI ---
+    $('#btnReset').addEventListener('click', initLevel1);
+    $('#toLevel2').addEventListener('click', initLevel2);
+    $('#btnFinish').addEventListener('click', showResults);
+    $('#btnReplay').addEventListener('click', initLevel1);
+
+    // Iniciar
+    initLevel1();
+  </script>
+</body>
+</html>
